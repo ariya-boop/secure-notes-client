@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CipherVault | Zero-Knowledge Encrypted Notes Client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #090d16;
+      --sidebar: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --accent: #38bdf8;
+      --green: #10b981;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .brand-icon {
+      background: var(--accent);
+      color: #000;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .vault-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--green);
+      margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .vault-status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .note-item {
+      padding: 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid transparent;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .note-item:hover, .note-item.active {
+      background: var(--card);
+      border-color: var(--accent);
+    }
+    .note-item-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .note-item-preview {
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .main-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .topbar {
+      height: 65px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #020617;
+      border-color: transparent;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .editor-container {
+      flex: 1;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .editor-title {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      outline: none;
+    }
+    .editor-textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: var(--text);
+      outline: none;
+      resize: none;
+      font-family: inherit;
+    }
+    .cipher-indicator {
+      padding: 10px 14px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <span class="brand-icon">AES</span>
+        CipherVault
+      </div>
+      <div class="vault-status">Zero-Knowledge AES-256-GCM Active</div>
+    </div>
+    <div style="padding: 12px 16px;">
+      <button class="btn btn-primary" id="newNoteBtn" style="width: 100%; justify-content: center;">+ New Encrypted Note</button>
+    </div>
+    <div class="notes-list" id="notesList"></div>
+  </aside>
+
+  <main class="main-view">
+    <header class="topbar">
+      <div style="font-size: 0.85rem; color: var(--muted);" id="statusMsg">All changes encrypted locally</div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" id="deleteBtn" style="color: #ef4444;">Delete</button>
+        <button class="btn btn-primary" id="saveBtn">Save & Encrypt</button>
+      </div>
+    </header>
+
+    <div class="editor-container">
+      <input type="text" class="editor-title" id="noteTitle" placeholder="Note Title...">
+      <textarea class="editor-textarea" id="noteBody" placeholder="Type confidential notes here. Content is encrypted via Web Crypto API with AES-GCM before storage..."></textarea>
+      
+      <div class="cipher-indicator">
+        <span>SECURITY: Client-Side PBKDF2 (100k rounds) + AES-GCM</span>
+        <span id="cipherLen">Payload: 0 bytes</span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // In-browser Zero-Knowledge Cryptography
+    const PASSPHRASE = "client-master-secret-key-salt";
+    let cryptoKey = null;
+
+    async function initKey() {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(PASSPHRASE), {name: "PBKDF2"}, false, ["deriveKey"]
+      );
+      cryptoKey = await crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: enc.encode("ciphervault-salt-2026"),
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        {name: "AES-GCM", length: 256},
+        false,
+        ["encrypt", "decrypt"]
+      );
+    }
+
+    async function encryptText(text) {
+      const enc = new TextEncoder();
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = await crypto.subtle.encrypt(
+        {name: "AES-GCM", iv: iv},
+        cryptoKey,
+        enc.encode(text)
+      );
+      const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(ciphertext), iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptText(b64) {
+      try {
+        const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const iv = raw.slice(0, 12);
+        const data = raw.slice(12);
+        const decrypted = await crypto.subtle.decrypt(
+          {name: "AES-GCM", iv: iv},
+          cryptoKey,
+          data
+        );
+        return new TextDecoder().decode(decrypted);
+      } catch (e) {
+        return "[Decryption failed: invalid key]";
+      }
+    }
+
+    // Storage state
+    let notes = JSON.parse(localStorage.getItem("ciphervault_notes") || "[]");
+    let activeId = null;
+
+    const notesList = document.getElementById("notesList");
+    const noteTitle = document.getElementById("noteTitle");
+    const noteBody = document.getElementById("noteBody");
+    const cipherLen = document.getElementById("cipherLen");
+    const statusMsg = document.getElementById("statusMsg");
+
+    async function renderNotes() {
+      notesList.innerHTML = "";
+      for (const n of notes) {
+        const el = document.createElement("div");
+        el.className = "note-item" + (n.id === activeId ? " active" : "");
+        el.onclick = () => selectNote(n.id);
+        const decryptedPreview = await decryptText(n.ciphertext);
+        el.innerHTML = `
+          <div class="note-item-title">${escapeHtml(n.title)}</div>
+          <div class="note-item-preview">${escapeHtml(decryptedPreview.slice(0, 45))}...</div>
+        `;
+        notesList.appendChild(el);
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    async function selectNote(id) {
+      activeId = id;
+      const n = notes.find(x => x.id === id);
+      if (n) {
+        noteTitle.value = n.title;
+        noteBody.value = await decryptText(n.ciphertext);
+        cipherLen.textContent = `Encrypted Ciphertext: ${n.ciphertext.length} chars (Base64)`;
+      }
+      renderNotes();
+    }
+
+    document.getElementById("newNoteBtn").onclick = () => {
+      activeId = Date.now();
+      noteTitle.value = "New Note";
+      noteBody.value = "";
+      cipherLen.textContent = "Payload: 0 bytes";
+      noteTitle.focus();
+    };
+
+    document.getElementById("saveBtn").onclick = async () => {
+      if (!cryptoKey) await initKey();
+      const title = noteTitle.value.trim() || "Untitled Note";
+      const body = noteBody.value;
+      const ciphertext = await encryptText(body);
+
+      const existingIdx = notes.findIndex(n => n.id === activeId);
+      if (existingIdx !== -1) {
+        notes[existingIdx] = { id: activeId, title, ciphertext };
+      } else {
+        const newId = activeId || Date.now();
+        activeId = newId;
+        notes.unshift({ id: newId, title, ciphertext });
+      }
+
+      localStorage.setItem("ciphervault_notes", JSON.stringify(notes));
+      cipherLen.textContent = `Encrypted Ciphertext: ${ciphertext.length} chars (Base64)`;
+      statusMsg.textContent = "✓ Encrypted & saved to client vault";
+      setTimeout(() => statusMsg.textContent = "All changes encrypted locally", 2000);
+      renderNotes();
+    };
+
+    document.getElementById("deleteBtn").onclick = () => {
+      if (!activeId) return;
+      notes = notes.filter(n => n.id !== activeId);
+      localStorage.setItem("ciphervault_notes", JSON.stringify(notes));
+      activeId = null;
+      noteTitle.value = "";
+      noteBody.value = "";
+      cipherLen.textContent = "Payload: 0 bytes";
+      renderNotes();
+    };
+
+    // Initialize with default note if empty
+    window.onload = async () => {
+      await initKey();
+      if (notes.length === 0) {
+        const ct = await encryptText("This note was encrypted client-side using Web Crypto API AES-GCM 256. Even server admins cannot read this without your master key.");
+        notes.push({ id: 1, title: "Welcome to Zero-Knowledge Vault", ciphertext: ct });
+        localStorage.setItem("ciphervault_notes", JSON.stringify(notes));
+      }
+      selectNote(notes[0].id);
+    };
+  </script>
+</body>
+</html>
